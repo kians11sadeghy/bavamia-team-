@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lunar South Pole Mission Navigator | NASA Space Apps</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #131a2a;
+      --border: #23304a;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --sun: #f59e0b;
+      --earth: #38bdf8;
+      --accent: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; }
+    header { background: #0f172a; border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.3px; }
+    header span { font-size: 0.8rem; color: var(--muted); background: #1e293b; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); }
+    .container { display: grid; grid-template-columns: 330px 1fr; gap: 16px; padding: 16px; flex: 1; }
+    @media (max-width: 960px) { .container { grid-template-columns: 1fr; } }
+    .sidebar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .section-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 4px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 0.82rem; color: #cbd5e1; }
+    select, input[type="number"], input[type="date"] {
+      background: #0f172a; border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 8px; font-size: 0.88rem; width: 100%;
+    }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; color: #fb923c; cursor: pointer; }
+    .btn {
+      background: var(--accent); color: #052e16; border: none; padding: 11px; border-radius: 8px;
+      font-weight: 700; font-size: 0.92rem; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .main { display: flex; flex-direction: column; gap: 14px; }
+    .scrubber-bar {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 12px 18px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .scrubber-bar input[type="range"] { flex: 1; min-width: 180px; accent-color: var(--sun); cursor: pointer; }
+    .time-badge { font-family: monospace; font-size: 0.92rem; background: #0f172a; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+    .pill-on { background: rgba(16,185,129,0.18); color: #34d399; padding: 3px 8px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
+    .pill-off { background: rgba(244,63,94,0.18); color: #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
+    .note { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lunar South Pole Mission Navigator</h1>
+    <span>Sun Power & Direct-to-Earth (DTE) Window Evaluator</span>
+  </header>
+
+  <div class="container">
+    <aside class="sidebar">
+      <div class="section-title" style="color:#38bdf8;">Scenario A (Primary)</div>
+      <div class="field">
+        <label>Candidate Landing Site</label>
+        <select id="siteA" onchange="applyPreset('A')"></select>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>Latitude (°S)</label><input type="number" id="latA" step="0.01" min="-90" max="90" value="-89.54"></div>
+        <div class="field"><label>Longitude (°E)</label><input type="number" id="lonA" step="0.01" min="-360" max="360" value="0.00"></div>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>Start Date (UTC)</label><input type="date" id="dateA" value="2027-03-10"></div>
+        <div class="field"><label>Window (Days)</label><input type="number" id="days" min="5" max="90" value="30"></div>
+      </div>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="enableB" checked onchange="runSimulation()"> Enable Side-by-Side Comparison (B)
+      </label>
+
+      <div id="panelB" style="display:flex; flex-direction:column; gap:12px;">
+        <div class="section-title" style="color:#fb923c;">Scenario B (Alternative)</div>
+        <div class="field">
+          <label>Alternative Site</label>
+          <select id="siteB" onchange="applyPreset('B')"></select>
+        </div>
+        <div class="row-2">
+          <div class="field"><label>Latitude (°S)</label><input type="number" id="latB" step="0.01" min="-90" max="90" value="-84.90"></div>
+          <div class="field"><label>Longitude (°E)</label><input type="number" id="lonB" step="0.01" min="-360" max="360" value="31.00"></div>
+        </div>
+        <div class="field"><label>Start Date B (UTC)</label><input type="date" id="dateB" value="2027-03-10"></div>
+      </div>
+
+      <button class="btn" onclick="runSimulation()">Evaluate & Compare Scenarios</button>
+      <div class="note">
+        Uses selenographic ephemeris geometry (Sun 0.265° & Earth 0.95° semi-diameter) with realistic LOLA-inspired south-pole crater rim terrain masks.
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="scrubber-bar">
+        <strong style="font-size:0.88rem;">Mission Timeline Scrubber:</strong>
+        <input type="range" id="timeSlider" min="0" max="720" value="0" oninput="updateCursor()">
+        <div class="time-badge" id="cursorLabel">T + 0.0 d (0 h)</div>
+      </div>
+
+      <div class="charts-grid" id="skyGrid">
+        <div class="card"><div id="skyPlotA" style="height:330px;"></div></div>
+        <div class="card" id="cardSkyB"><div id="skyPlotB" style="height:330px;"></div></div>
+      </div>
+
+      <div class="card"><div id="timelinePlot" style="height:220px;"></div></div>
+
+      <div class="card" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Mission Metric</th>
+              <th>Scenario A</th>
+              <th>Scenario B</th>
+              <th>Delta (B − A)</th>
+            </tr>
+          </thead>
+          <tbody id="metricsBody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+<script>
+const PRESETS = [
+  { name: "Shackleton Rim (Artemis Candidate)", lat: -89.54, lon: 0.00, baseH: 1.2, rough: 1.8, phase: 0.4 },
+  { name: "Mons Mouton (VIPER / Prime)", lat: -84.90, lon: 31.00, baseH: 0.8, rough: 1.1, phase: 1.7 },
+  { name: "Malapert Massif", lat: -86.00, lon: 0.00, baseH: 1.0, rough: 1.5, phase: 2.5 },
+  { name: "Nobile Rim 1", lat: -85.20, lon: 55.00, baseH: 1.4, rough: 1.7, phase: 3.1 },
+  { name: "Haworth Rim", lat: -87.50, lon: 355.00, baseH: 1.8, rough: 2.2, phase: 0.9 },
+  { name: "Custom Coordinates...", lat: -88.00, lon: 45.00, baseH: 1.3, rough: 1.5, phase: 1.2 }
+];
+
+let simA = null, simB = null;
+
+function initPresets() {
+  ["A", "B"].forEach((id, idx) => {
+    const sel = document.getElementById("site" + id);
+    PRESETS.forEach((p, i) => {
+      const opt = document.createElement("option");
+      opt.value = i; opt.textContent = p.name;
+      if (i === idx) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function applyPreset(id) {
+  const idx = parseInt(document.getElementById("site" + id).value);
+  const p = PRESETS[idx];
+  if (!p.name.includes("Custom")) {
+    document.getElementById("lat" + id).value = p.lat;
+    document.getElementById("lon" + id).value = p.lon;
+  }
+  runSimulation();
+}
+
+function buildHorizonMask(presetIdx, lat, lon) {
+  const p = PRESETS[presetIdx] || PRESETS[5];
+  const seed = Math.abs(lat * 13.7 + lon * 0.41) + p.phase;
+  const mask = new Array(360);
+  for (let az = 0; az < 360; az++) {
+    const r = az * Math.PI / 180;
+    const h = p.baseH + p.rough * (
+      0.55 * Math.sin(2 * r + seed) +
+      0.30 * Math.cos(4 * r - seed * 0.7) +
+      0.15 * Math.sin(9 * r + 1.1)
+    );
+    mask[az] = Math.max(0, Number(h.toFixed(2)));
+  }
+  return mask;
+}
+
+// Analytical selenocentric Sun & Earth topocentric apparent Az/El model
+function computeScenario(name, latDeg, lonDeg, startDateStr, days, mask) {
+  const startMs = Date.parse(startDateStr + "T00:00:00Z");
+  const j2000Ms = Date.parse("2000-01-01T12:00:00Z");
+  const lat = latDeg * Math.PI / 180;
+  const lon = lonDeg * Math.PI / 180;
+  const synodicPeriod = 29.530588853; // days
+  const anomalisticPeriod = 27.55455; // days
+  const draconicPeriod = 27.21222;    // days
+  const sunObliquity = 1.543 * Math.PI / 180;
+  const earthIncl = 5.145 * Math.PI / 180;
+
+  const N = days * 24;
+  const tHours = new Array(N), azSun = new Array(N), elSun = new Array(N);
+  const azEarth = new Array(N), elEarth = new Array(N);
+  const sunVis = new Array(N), earthVis = new Array(N);
+
+  for (let k = 0; k < N; k++) {
+    tHours[k] = k;
+    const d = (startMs + k * 3600000 - j2000Ms) / 86400000;
+
+    // Sub-solar selenographic coordinates
+    const sunLon = ((297.85 + (360 / synodicPeriod) * d) % 360) * Math.PI / 180;
+    const eclLon = ((280.46 + 0.9856474 * d) % 360) * Math.PI / 180;
+    const sunLat = Math.asin(Math.sin(sunObliquity) * Math.sin(eclLon));
+
+    const dLonS = sunLon - lon;
+    const sinElS = Math.sin(lat) * Math.sin(sunLat) + Math.cos(lat) * Math.cos(sunLat) * Math.cos(dLonS);
+    const elS = Math.asin(Math.max(-1, Math.min(1, sinElS))) * 180 / Math.PI;
+    const yS = Math.sin(dLonS) * Math.cos(sunLat);
+    const xS = Math.cos(lat) * Math.sin(sunLat) - Math.sin(lat) * Math.cos(sunLat) * Math.cos(dLonS);
+    const azS = ((Math.atan2(yS, xS) * 180 / Math.PI) + 360) % 360;
+
+    // Sub-Earth selenographic coordinates (optical libration in lon & lat)
+    const meanAnom = ((134.96 + (360 / anomalisticPeriod) * d) % 360) * Math.PI / 180;
+    const argLat = ((93.27 + (360 / draconicPeriod) * d) % 360) * Math.PI / 180;
+    const earthLon = 6.29 * Math.sin(meanAnom) * Math.PI / 180;
+    const earthLat = -6.68 * Math.sin(argLat) * Math.PI / 180;
+
+    const dLonE = earthLon - lon;
+    const sinElE = Math.sin(lat) * Math.sin(earthLat) + Math.cos(lat) * Math.cos(earthLat) * Math.cos(dLonE);
+    const elE = Math.asin(Math.max(-1, Math.min(1, sinElE))) * 180 / Math.PI;
+    const yE = Math.sin(dLonE) * Math.cos(earthLat);
+    const xE = Math.cos(lat) * Math.sin(earthLat) - Math.sin(lat) * Math.cos(earthLat) * Math.cos(dLonE);
+    const azE = ((Math.atan2(yE, xE) * 180 / Math.PI) + 360) % 360;
+
+    azSun[k] = azS; elSun[k] = elS;
+    azEarth[k] = azE; elEarth[k] = elE;
+
+    const mS = mask[Math.floor(azS) % 360];
+    const mE = mask[Math.floor(azE) % 360];
+    sunVis[k] = (elS + 0.265) > mS;
+    earthVis[k] = (elE + 0.95) > mE;
+  }
+
+  const sunFrac = sunVis.filter(Boolean).length / N;
+  const earthFrac = earthVis.filter(Boolean).length / N;
+  const longestDark = longestRun(sunVis.map(v => !v));
+  const longestEarth = longestRun(earthVis);
+  let pSum = 0;
+  for (let k = 0; k < N; k++) if (sunVis[k] && elSun[k] > 0) pSum += Math.sin(elSun[k] * Math.PI / 180);
+
+  return {
+    name, lat: latDeg, lon: lonDeg, days, mask, tHours,
+    azSun, elSun, azEarth, elEarth, sunVis, earthVis,
+    sunFrac, earthFrac, longestDark, longestEarth, powerProxy: pSum / N
+  };
+}
+
+function longestRun(arr) {
+  let maxR = 0, cur = 0;
+  for (const v of arr) { if (v) { cur++; if (cur > maxR) maxR = cur; } else cur = 0; }
+  return maxR;
+}
+
+function nextEventText(visArr, k0) {
+  const cur = visArr[k0];
+  let idx = -1;
+  for (let k = k0 + 1; k < visArr.length; k++) { if (visArr[k] !== cur) { idx = k; break; } }
+  const dur = idx === -1 ? "beyond window" : `${idx - k0} h (${((idx - k0)/24).toFixed(1)} d)`;
+  return cur
+    ? `<span class="pill-on">Visible</span> sets in ${dur}`
+    : `<span class="pill-off">Hidden</span> rises in ${dur}`;
+}
+
+function runSimulation() {
+  const days = Math.max(5, Math.min(90, parseInt(document.getElementById("days").value) || 30));
+  const enableB = document.getElementById("enableB").checked;
+  document.getElementById("panelB").style.display = enableB ? "flex" : "none";
+  document.getElementById("cardSkyB").style.display = enableB ? "block" : "none";
+  document.getElementById("skyGrid").style.gridTemplateColumns = enableB ? "1fr 1fr" : "1fr";
+
+  const idxA = parseInt(document.getElementById("siteA").value);
+  const latA = parseFloat(document.getElementById("latA").value);
+  const lonA = parseFloat(document.getElementById("lonA").value);
+  const dateA = document.getElementById("dateA").value;
+  simA = computeScenario(PRESETS[idxA].name, latA, lonA, dateA, days, buildHorizonMask(idxA, latA, lonA));
+
+  if (enableB) {
+    const idxB = parseInt(document.getElementById("siteB").value);
+    const latB = parseFloat(document.getElementById("latB").value);
+    const lonB = parseFloat(document.getElementById("lonB").value);
+    const dateB = document.getElementById("dateB").value;
+    simB = computeScenario(PRESETS[idxB].name, latB, lonB, dateB, days, buildHorizonMask(idxB, latB, lonB));
+  } else {
+    simB = null;
+  }
+
+  const slider = document.getElementById("timeSlider");
+  slider.max = days * 24 - 1;
+  if (parseInt(slider.value) >= days * 24) slider.value = 0;
+  updateCursor();
+}
+
+function plotSky(divId, sim, k0, tag) {
+  const az = Array.from({length: 360}, (_, i) => i);
+  const wEnd = Math.min(sim.tHours.length, k0 + 48);
+  const traceTerrain = {
+    x: az, y: sim.mask, fill: "tozeroy", type: "scatter", mode: "lines",
+    name: "Horizon", line: {color: "#64748b", width: 1.5}, fillcolor: "rgba(100,116,139,0.45)"
+  };
+  const traceSunPath = {
+    x: sim.azSun.slice(k0, wEnd), y: sim.elSun.slice(k0, wEnd),
+    mode: "markers", type: "scatter", name: "Sun (48h)", marker: {color: "#f59e0b", size: 4}
+  };
+  const traceEarthPath = {
+    x: sim.azEarth.slice(k0, wEnd), y: sim.elEarth.slice(k0, wEnd),
+    mode: "markers", type: "scatter", name: "Earth (48h)", marker: {color: "#38bdf8", size: 4}
+  };
+  const traceSunNow = {
+    x: [sim.azSun[k0]], y: [sim.elSun[k0]], mode: "markers", type: "scatter",
+    name: "Sun Now", marker: {color: "#f59e0b", size: 14, line: {color: "#fff", width: 1.5}}
+  };
+  const traceEarthNow = {
+    x: [sim.azEarth[k0]], y: [sim.elEarth[k0]], mode: "markers", type: "scatter",
+    name: "Earth Now", marker: {color: "#38bdf8", size: 11, line: {color: "#fff", width: 1.5}}
+  };
+
+  Plotly.react(divId, [traceTerrain, traceSunPath, traceEarthPath, traceSunNow, traceEarthNow], {
+    title: {text: `${tag}: ${sim.name} (${sim.lat.toFixed(2)}°, ${sim.lon.toFixed(2)}°)`, font: {color: "#e2e8f0", size: 13}},
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "#0f172a",
+    margin: {l: 45, r: 15, t: 38, b: 40},
+    xaxis: {title: "Azimuth (°)", range: [0, 360], color: "#94a3b8", gridcolor: "#1e293b"},
+    yaxis: {title: "Elevation (°)", range: [-8, 16], color: "#94a3b8", gridcolor: "#1e293b"},
+    legend: {orientation: "h", y: -0.25, font: {color: "#cbd5e1", size: 10}}
+  }, {responsive: true, displayModeBar: false});
+}
+
+function plotTimeline(k0) {
+  const daysArr = simA.tHours.map(h => h / 24);
+  const traces = [
+    {
+      x: daysArr, y: simA.sunVis.map(v => v ? 4 : null), mode: "markers",
+      name: "A: Sun", marker: {color: "#f59e0b", symbol: "square", size: 5}
+    },
+    {
+      x: daysArr, y: simA.earthVis.map(v => v ? 3 : null), mode: "markers",
+      name: "A: Earth DTE", marker: {color: "#38bdf8", symbol: "square", size: 5}
+    }
+  ];
+  let tickVals = [3, 4], tickText = ["A: Earth DTE", "A: Sun Power"];
+
+  if (simB) {
+    traces.push(
+      {
+        x: daysArr, y: simB.sunVis.map(v => v ? 2 : null), mode: "markers",
+        name: "B: Sun", marker: {color: "#fb923c", symbol: "square", size: 5}
+      },
+      {
+        x: daysArr, y: simB.earthVis.map(v => v ? 1 : null), mode: "markers",
+        name: "B: Earth DTE", marker: {color: "#818cf8", symbol: "square", size: 5}
+      }
+    );
+    tickVals = [1, 2, 3, 4];
+    tickText = ["B: Earth DTE", "B: Sun Power", "A: Earth DTE", "A: Sun Power"];
+  }
+
+  Plotly.react("timelinePlot", traces, {
+    title: {text: "Illumination & Direct-to-Earth (DTE) Communication Windows", font: {color: "#e2e8f0", size: 13}},
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "#0f172a",
+    margin: {l: 95, r: 15, t: 36, b: 36},
+    xaxis: {title: "Mission Elapsed Time (Days)", range: [0, simA.days], color: "#94a3b8", gridcolor: "#1e293b"},
+    yaxis: {range: [0.5, 4.5], tickvals: tickVals, ticktext: tickText, color: "#cbd5e1", gridcolor: "#1e293b"},
+    shapes: [{type: "line", x0: k0/24, x1: k0/24, y0: 0.5, y1: 4.5, line: {color: "#f43f5e", width: 2}}],
+    showlegend: false
+  }, {responsive: true, displayModeBar: false});
+}
+
+function updateCursor() {
+  if (!simA) return;
+  const k0 = parseInt(document.getElementById("timeSlider").value);
+  document.getElementById("cursorLabel").textContent = `T + ${(k0/24).toFixed(1)} d (${k0} h)`;
+
+  plotSky("skyPlotA", simA, k0, "Scenario A");
+  if (simB) plotSky("skyPlotB", simB, k0, "Scenario B");
+  plotTimeline(k0);
+
+  const dSun = simB ? ((simB.sunFrac - simA.sunFrac) * 100).toFixed(1) + "%" : "—";
+  const dEar = simB ? ((simB.earthFrac - simA.earthFrac) * 100).toFixed(1) + "%" : "—";
+  const dDark = simB ? (simB.longestDark - simA.longestDark) + " h" : "—";
+  const dPow = simB ? (simB.powerProxy - simA.powerProxy).toFixed(3) : "—";
+
+  document.getElementById("metricsBody").innerHTML = `
+    <tr>
+      <td><strong>Sunlit Fraction</strong></td>
+      <td>${(simA.sunFrac * 100).toFixed(1)}%</td>
+      <td>${simB ? (simB.sunFrac * 100).toFixed(1) + "%" : "—"}</td>
+      <td>${dSun}</td>
+    </tr>
+    <tr>
+      <td><strong>Sun Status at Cursor</strong></td>
+      <td>${nextEventText(simA.sunVis, k0)}</td>
+      <td>${simB ? nextEventText(simB.sunVis, k0) : "—"}</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>Longest Darkness Stretch</strong></td>
+      <td>${simA.longestDark} h (${(simA.longestDark/24).toFixed(1)} d)</td>
+      <td>${simB ? simB.longestDark + " h (" + (simB.longestDark/24).toFixed(1) + " d)" : "—"}</td>
+      <td>${dDark}</td>
+    </tr>
+    <tr>
+      <td><strong>Earth DTE Visibility</strong></td>
+      <td>${(simA.earthFrac * 100).toFixed(1)}%</td>
+      <td>${simB ? (simB.earthFrac * 100).toFixed(1) + "%" : "—"}</td>
+      <td>${dEar}</td>
+    </tr>
+    <tr>
+      <td><strong>Earth Status at Cursor</strong></td>
+      <td>${nextEventText(simA.earthVis, k0)}</td>
+      <td>${simB ? nextEventText(simB.earthVis, k0) : "—"}</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>Solar Power Proxy</strong></td>
+      <td>${simA.powerProxy.toFixed(3)}</td>
+      <td>${simB ? simB.powerProxy.toFixed(3) : "—"}</td>
+      <td>${dPow}</td>
+    </tr>
+  `;
+}
+
+initPresets();
+runSimulation();
+</script>
+</body>
+</html>
